@@ -4,7 +4,7 @@ orbs:
   win: circleci/windows@2.2.0
 
 jobs:
-  build:
+  check-vs-expiry-date:
     executor:
       name: win/default
       shell: powershell.exe
@@ -25,18 +25,19 @@ jobs:
 
             Write-Output 'Expiry Date:', $expiryStr
 
-            if((Get-Date) -le $test.ExpirationDate.AddDays(-2)) {
+            if((Get-Date) -le $test.ExpirationDate.AddDays(-7)) {
               Write-Output 'The license is still in date'
               Exit 0
             } else {
               $Fields = [pscustomobject]@{
                 ExpiryDate = $expiryStr
                 TestURL = $env:CIRCLE_BUILD_URL
+                Runbook = "https://github.com/circleci/engineering/blob/master/teams/machine/systems/rebuild-windows-images.md"
               } | New-SlackField -Short
               New-SlackMessageAttachment -Color '#ff0000' `
                              -Title 'The Visual Studio License is about to expire' `
                              -TitleLink "$env:CIRCLE_BUILD_URL" `
-                             -Text 'Please update the Windows Image' `
+                             -Text 'Please update the Windows Image using the Runbook' `
                              -Fields $Fields `
                              -AuthorName 'Visual Studio License Checker' `
                              -Fallback 'Your client is bad' |
@@ -52,14 +53,14 @@ workflows:
   version: 2
   commit:
     jobs:
-      - build
-  nightly:
+      - check-vs-expiry-date
+  daily-check:
     triggers:
       - schedule:
-          cron: "15 * * * *"
+          cron: "15 15 * * *"
           filters:
             branches:
               only:
                 - master
     jobs:
-      - build
+      - check-vs-expiry-date
